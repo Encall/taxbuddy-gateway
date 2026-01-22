@@ -1,0 +1,31 @@
+# Traefik Static Configuration
+# This file contains the static configuration for Traefik.
+# Dynamic routing rules are in dynamic.yaml
+
+# Entry points define the ports Traefik listens on
+entryPoints:
+  web:
+    address: ":80"
+  # Uncomment for HTTPS in production
+  # websecure:
+  #   address: ":443"
+
+# File provider for dynamic configuration
+providers:
+  file:
+    filename: /etc/traefik/dynamic.yaml
+    watch: true
+
+# API dashboard (disable in production)
+api:
+  dashboard: true
+  insecure: true  # Only for local dev, remove in production
+
+# Logging
+log:
+  level: INFO
+  format: common
+
+# Access logs
+accessLog:
+  format: common

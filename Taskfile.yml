@@ -1,0 +1,96 @@
+version: "3"
+
+vars:
+  TRAEFIK_VERSION: "3.2.3"
+  TRAEFIK_DIR: "./bin"
+  CONFIG_DIR: "./config"
+  # Default hosts for local development
+  BACKEND_HOST: "localhost:8080"
+  RETREIVER_HOST: "localhost:8000"
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  # Download Traefik binary
+  download:
+    desc: Download Traefik binary for Windows
+    cmds:
+      - mkdir -p {{.TRAEFIK_DIR}}
+      - |
+        echo "Downloading Traefik v{{.TRAEFIK_VERSION}} for Windows..."
+        curl -L -o {{.TRAEFIK_DIR}}/traefik.zip https://github.com/traefik/traefik/releases/download/v{{.TRAEFIK_VERSION}}/traefik_v{{.TRAEFIK_VERSION}}_windows_amd64.zip
+        cd {{.TRAEFIK_DIR}} && unzip -o traefik.zip && rm traefik.zip
+        echo "✅ Traefik downloaded to {{.TRAEFIK_DIR}}/traefik.exe"
+    status:
+      - test -f {{.TRAEFIK_DIR}}/traefik.exe
+
+  download-linux:
+    desc: Download Traefik binary for Linux
+    cmds:
+      - mkdir -p {{.TRAEFIK_DIR}}
+      - |
+        echo "Downloading Traefik v{{.TRAEFIK_VERSION}} for Linux..."
+        curl -L -o {{.TRAEFIK_DIR}}/traefik.tar.gz https://github.com/traefik/traefik/releases/download/v{{.TRAEFIK_VERSION}}/traefik_v{{.TRAEFIK_VERSION}}_linux_amd64.tar.gz
+        cd {{.TRAEFIK_DIR}} && tar -xzf traefik.tar.gz && rm traefik.tar.gz
+        chmod +x {{.TRAEFIK_DIR}}/traefik
+        echo "✅ Traefik downloaded to {{.TRAEFIK_DIR}}/traefik"
+    status:
+      - test -f {{.TRAEFIK_DIR}}/traefik
+
+  # Run Traefik locally
+  run:
+    desc: Run Traefik gateway locally (connects to backend at localhost:8080)
+    deps: [download]
+    env:
+      BACKEND_HOST: "{{.BACKEND_HOST}}"
+    cmds:
+      - echo "Starting Traefik gateway..."
+      - echo "Backend host -> $BACKEND_HOST"
+      - |
+        {{.TRAEFIK_DIR}}/traefik.exe \
+          --configFile={{.CONFIG_DIR}}/traefik.yaml \
+          --providers.file.filename={{.CONFIG_DIR}}/dynamic.yaml
+
+  run-linux:
+    desc: Run Traefik gateway locally on Linux/Mac
+    deps: [download-linux]
+    env:
+      BACKEND_HOST: "{{.BACKEND_HOST}}"
+    cmds:
+      - echo "Starting Traefik gateway..."
+      - echo "Backend host -> $BACKEND_HOST"
+      - |
+        {{.TRAEFIK_DIR}}/traefik \
+          --configFile={{.CONFIG_DIR}}/traefik.yaml \
+          --providers.file.filename={{.CONFIG_DIR}}/dynamic.yaml
+
+  # Docker commands
+  docker-build:
+    desc: Build Docker image for the gateway
+    cmds:
+      - docker build -t taxbuddy-gateway:latest .
+
+  docker-up:
+    desc: Start all services with Docker Compose
+    cmds:
+      - docker-compose up -d
+
+  docker-down:
+    desc: Stop all Docker Compose services
+    cmds:
+      - docker-compose down
+
+  docker-logs:
+    desc: View Docker Compose logs
+    cmds:
+      - docker-compose logs -f
+
+  # Utility
+  clean:
+    desc: Clean downloaded binaries
+    cmds:
+      - rm -rf {{.TRAEFIK_DIR}}
+      - echo "✅ Cleaned up"

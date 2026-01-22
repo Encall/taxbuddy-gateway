@@ -1,0 +1,95 @@
+# Traefik Dynamic Configuration
+# Routing rules, middlewares, and services
+
+http:
+  # Middlewares
+  middlewares:
+    # Strict Forward Auth - Blocks if no valid token
+    forward-auth:
+      forwardAuth:
+        address: "http://{{ env \"BACKEND_HOST\" }}/auth/verify"
+        authRequestHeaders:
+          - "Authorization"
+          - "X-Request-ID"
+        authResponseHeaders:
+          - "X-User-ID"
+          - "X-User-Email"
+
+    # Optional Forward Auth - Allows guests (returns X-User-ID: guest)
+    forward-auth-optional:
+      forwardAuth:
+        address: "http://{{ env \"BACKEND_HOST\" }}/auth/verify?mode=optional"
+        authRequestHeaders:
+          - "Authorization"
+          - "X-Request-ID"
+        authResponseHeaders:
+          - "X-User-ID"
+          - "X-User-Email"
+
+  # Routers
+  routers:
+    # Health check - no auth required
+    health:
+      rule: "Path(`/health`)"
+      entryPoints:
+        - web
+      service: backend
+      priority: 100
+
+    # Auth endpoints - no forward auth (public)
+    auth:
+      rule: "PathPrefix(`/api/v1/auth`) || PathPrefix(`/auth`)"
+      entryPoints:
+        - web
+      service: backend
+      priority: 90
+
+    # Example Optional Auth route (e.g. public search that tracks user history if logged in)
+    # api-optional:
+    #   rule: "PathPrefix(`/api/v1/public-feature`)"
+    #   entryPoints:
+    #     - web
+    #   middlewares:
+    #     - forward-auth-optional
+    #   service: backend
+    #   priority: 60
+
+    # Retriever service integration
+    retreiver:
+      rule: "PathPrefix(`/api/retreive`)"
+      entryPoints:
+        - web
+      middlewares:
+        - forward-auth-optional
+      service: retreiver-service
+      priority: 60
+
+    # API routes - protected with strict forward auth
+    api:
+      rule: "PathPrefix(`/api`)"
+      entryPoints:
+        - web
+      middlewares:
+        - forward-auth
+      service: backend
+      priority: 50
+
+    # Catch-all to backend
+    catch-all:
+      rule: "PathPrefix(`/`)"
+      entryPoints:
+        - web
+      service: backend
+      priority: 1
+
+  # Services
+  services:
+    backend:
+      loadBalancer:
+        servers:
+          - url: "http://{{ env \"BACKEND_HOST\" }}"
+
+    retreiver-service:
+      loadBalancer:
+        servers:
+          - url: "http://{{ env \"RETREIVER_HOST\" }}"
