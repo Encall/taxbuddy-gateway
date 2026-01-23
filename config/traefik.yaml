@@ -13,7 +13,7 @@ entryPoints:
 # File provider for dynamic configuration
 providers:
   file:
-    filename: /etc/traefik/dynamic.yaml
+    filename: /config/dynamic.yaml
     watch: true
 
 # API dashboard (disable in production)

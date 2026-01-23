@@ -7,7 +7,7 @@ http:
     # Strict Forward Auth - Blocks if no valid token
     forward-auth:
       forwardAuth:
-        address: "http://{{ env \"BACKEND_HOST\" }}/auth/verify"
+        address: "http://{{ env "BACKEND_HOST" }}/auth/verify"
         authRequestHeaders:
           - "Authorization"
           - "X-Request-ID"
@@ -18,7 +18,7 @@ http:
     # Optional Forward Auth - Allows guests (returns X-User-ID: guest)
     forward-auth-optional:
       forwardAuth:
-        address: "http://{{ env \"BACKEND_HOST\" }}/auth/verify?mode=optional"
+        address: "http://{{ env "BACKEND_HOST" }}/auth/verify?mode=optional"
         authRequestHeaders:
           - "Authorization"
           - "X-Request-ID"
@@ -43,16 +43,6 @@ http:
         - web
       service: backend
       priority: 90
-
-    # Example Optional Auth route (e.g. public search that tracks user history if logged in)
-    # api-optional:
-    #   rule: "PathPrefix(`/api/v1/public-feature`)"
-    #   entryPoints:
-    #     - web
-    #   middlewares:
-    #     - forward-auth-optional
-    #   service: backend
-    #   priority: 60
 
     # Retriever service integration
     retreiver:
@@ -87,9 +77,9 @@ http:
     backend:
       loadBalancer:
         servers:
-          - url: "http://{{ env \"BACKEND_HOST\" }}"
+          - url: http://{{ env "BACKEND_HOST" }}
 
     retreiver-service:
       loadBalancer:
         servers:
-          - url: "http://{{ env \"RETREIVER_HOST\" }}"
+          - url: http://{{ env "RETREIVER_HOST" }}
