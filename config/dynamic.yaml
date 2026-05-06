@@ -1,10 +1,9 @@
 # Traefik Dynamic Configuration
-# Routing rules, middlewares, and services
+# Uses Go template syntax — env vars are injected from the gateway container environment.
 
 http:
-  # Middlewares
   middlewares:
-    # Strict Forward Auth - Blocks if no valid token
+    # Strict auth — returns 401 if token is missing or invalid
     forward-auth:
       forwardAuth:
         address: "http://{{ env "BACKEND_HOST" }}/auth/verify"
@@ -15,7 +14,7 @@ http:
           - "X-User-ID"
           - "X-User-Email"
 
-    # Optional Forward Auth - Allows guests (returns X-User-ID: guest)
+    # Optional auth — allows guests through with empty X-User-ID
     forward-auth-optional:
       forwardAuth:
         address: "http://{{ env "BACKEND_HOST" }}/auth/verify?mode=optional"
@@ -26,60 +25,80 @@ http:
           - "X-User-ID"
           - "X-User-Email"
 
-  # Routers
   routers:
-    # Health check - no auth required
+    # ── Public routes (no auth) ─────────────────────────────────────────────
+
     health:
-      rule: "Path(`/health`)"
-      entryPoints:
-        - web
+      rule: "Host(`{{ env "DOMAIN" }}`) && Path(`/health`)"
+      entryPoints: [websecure]
       service: backend
       priority: 100
+      tls:
+        certResolver: letsencrypt
 
-    # Auth endpoints - no forward auth (public)
-    auth:
-      rule: "PathPrefix(`/api/v1/auth`) || PathPrefix(`/auth`)"
-      entryPoints:
-        - web
+    # Covers /api/v1/auth/* and /auth/verify (Traefik forward auth endpoint)
+    auth-public:
+      rule: "Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api/v1/auth`) || PathPrefix(`/auth`))"
+      entryPoints: [websecure]
       service: backend
-      priority: 90
+      priority: 95
+      tls:
+        certResolver: letsencrypt
 
-    # Retriever service integration
-    retreiver:
-      rule: "PathPrefix(`/api/retreive`)"
-      entryPoints:
-        - web
-      middlewares:
-        - forward-auth-optional
-      service: retreiver-service
+    # ── Retriever routes ────────────────────────────────────────────────────
+
+    # /api/v2/responses uses optional auth to support guest chat
+    retriever-responses:
+      rule: "Host(`{{ env "DOMAIN" }}`) && Path(`/api/v2/responses`)"
+      entryPoints: [websecure]
+      service: retriever
+      middlewares: [forward-auth-optional]
+      priority: 80
+      tls:
+        certResolver: letsencrypt
+
+    # /api/v1/documents, /api/v1/ingest, /api/v1/users — strict auth
+    retriever-v1:
+      rule: "Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api/v1/documents`) || PathPrefix(`/api/v1/ingest`) || PathPrefix(`/api/v1/users`))"
+      entryPoints: [websecure]
+      service: retriever
+      middlewares: [forward-auth]
+      priority: 70
+      tls:
+        certResolver: letsencrypt
+
+    # All other /api/v2/* (conversations, tax, financial-summary, health, etc.)
+    retriever-v2:
+      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api/v2`)"
+      entryPoints: [websecure]
+      service: retriever
+      middlewares: [forward-auth]
       priority: 60
+      tls:
+        certResolver: letsencrypt
 
-    # API routes - protected with strict forward auth
-    api:
-      rule: "PathPrefix(`/api`)"
-      entryPoints:
-        - web
-      middlewares:
-        - forward-auth
+    # ── Backend routes ──────────────────────────────────────────────────────
+
+    backend-user:
+      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1/user`)"
+      entryPoints: [websecure]
       service: backend
+      middlewares: [forward-auth]
       priority: 50
+      tls:
+        certResolver: letsencrypt
 
-    # Catch-all to backend
-    catch-all:
-      rule: "PathPrefix(`/`)"
-      entryPoints:
-        - web
-      service: backend
-      priority: 1
-
-  # Services
   services:
     backend:
       loadBalancer:
         servers:
-          - url: http://{{ env "BACKEND_HOST" }}
+          - url: "http://{{ env "BACKEND_HOST" }}"
 
-    retreiver-service:
+    retriever:
       loadBalancer:
         servers:
-          - url: http://{{ env "RETREIVER_HOST" }}
+          - url: "http://{{ env "RETRIEVER_HOST" }}"
+        healthCheck:
+          path: /api/v2/health
+          interval: "30s"
+          timeout: "5s"

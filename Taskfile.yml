@@ -4,8 +4,6 @@ dotenv: [".env"]
 vars:
   TRAEFIK_VERSION: "3.6"
   CONFIG_DIR: "./config"
-  BACKEND_HOST: "{{.BACKEND_HOST}}"
-  RETREIVER_HOST: "{{.RETREIVER_HOST}}"
 
 tasks:
   default:
@@ -13,43 +11,45 @@ tasks:
     cmds:
       - task --list
 
-  # Run Traefik locally via Docker (builds first)
   run:
-    desc: Run Traefik gateway locally in Docker (builds and connects to host backend/retriever)
+    desc: Run Traefik gateway locally in Docker (volume-mounts config, connects to host services)
     aliases: [dev]
     cmds:
-      - echo "Starting Traefik in Docker..."
-      - echo "Backend -> {{.BACKEND_HOST}}"
-      - echo "Retriever -> {{.RETREIVER_HOST}}"
+      - echo "Starting Traefik..."
+      - echo "Backend  -> {{.BACKEND_HOST}}"
+      - echo "Retriever -> {{.RETRIEVER_HOST}}"
       - >
         docker run --rm -it
         -p 80:80
         -p 8080:8080
         -v "{{.USER_WORKING_DIR}}/config:/config"
         -e BACKEND_HOST={{.BACKEND_HOST}}
-        -e RETREIVER_HOST={{.RETREIVER_HOST}}
+        -e RETRIEVER_HOST={{.RETRIEVER_HOST}}
+        -e DOMAIN={{.DOMAIN}}
         --add-host=host.docker.internal:host-gateway
         traefik:{{.TRAEFIK_VERSION}}
         --configFile=/config/traefik.yaml
         --log.level=DEBUG
 
-  # Docker Compose commands for full stack
-  docker-build:
-    desc: Build Docker image for the gateway
+  build:
+    desc: Build gateway Docker image (bakes config into image for production)
     cmds:
       - docker build -t taxbuddy-gateway:latest .
 
-  docker-up:
-    desc: Start all services with Docker Compose
+  prod:
+    desc: Run the built gateway image in production
     cmds:
-      - docker-compose up -d
-
-  docker-down:
-    desc: Stop all Docker Compose services
-    cmds:
-      - docker-compose down
-
-  docker-logs:
-    desc: View Docker Compose logs
-    cmds:
-      - docker-compose logs -f
+      - >
+        docker run -d
+        --name taxbuddy-gateway
+        --restart unless-stopped
+        -p 80:80
+        -p 443:443
+        -v letsencrypt:/letsencrypt
+        -e BACKEND_HOST={{.BACKEND_HOST}}
+        -e RETRIEVER_HOST={{.RETRIEVER_HOST}}
+        -e DOMAIN={{.DOMAIN}}
+        taxbuddy-gateway:latest
+        --certificatesresolvers.letsencrypt.acme.email={{.ACME_EMAIL}}
+        --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+        --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
