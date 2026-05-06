@@ -22,24 +22,13 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Generate changelog (auto-bump)
-        id: cliff_auto
+      - name: Resolve version (auto-bump)
+        id: bump
         if: inputs.version == ''
         uses: orhun/git-cliff-action@v4
         with:
           config: cliff.toml
-          args: --bump --unreleased --strip header
-        env:
-          GITHUB_REPO: ${{ github.repository }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Generate changelog (explicit version)
-        id: cliff_explicit
-        if: inputs.version != ''
-        uses: orhun/git-cliff-action@v4
-        with:
-          config: cliff.toml
-          args: --tag ${{ inputs.version }} --unreleased --strip header
+          args: --bump --bumped-version
         env:
           GITHUB_REPO: ${{ github.repository }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -47,17 +36,23 @@ jobs:
       - name: Resolve version and changelog
         id: resolved
         run: |
+          set -euo pipefail
           if [ -n "${{ inputs.version }}" ]; then
-            echo "tag=${{ inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "content<<EOF" >> "$GITHUB_OUTPUT"
-            echo "${{ steps.cliff_explicit.outputs.content }}" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            tag="${{ inputs.version }}"
           else
-            echo "tag=${{ steps.cliff_auto.outputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "content<<EOF" >> "$GITHUB_OUTPUT"
-            echo "${{ steps.cliff_auto.outputs.content }}" >> "$GITHUB_OUTPUT"
-            echo "EOF" >> "$GITHUB_OUTPUT"
+            tag="$(printf '%s' "${{ steps.bump.outputs.content }}" | tr -d '[:space:]')"
           fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Generate changelog
+        id: cliff
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: cliff.toml
+          args: --tag ${{ steps.resolved.outputs.tag }} --unreleased --strip header
+        env:
+          GITHUB_REPO: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Stop if tag already exists
         run: |
@@ -82,6 +77,6 @@ jobs:
         with:
           tag_name: ${{ steps.resolved.outputs.tag }}
           name: ${{ steps.resolved.outputs.tag }}
-          body: ${{ steps.resolved.outputs.content }}
+          body: ${{ steps.cliff.outputs.content }}
           draft: false
           prerelease: false
