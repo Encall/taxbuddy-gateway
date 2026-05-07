@@ -29,64 +29,52 @@ http:
     # ── Public routes (no auth) ─────────────────────────────────────────────
 
     health:
-      rule: "Host(`{{ env "DOMAIN" }}`) && Path(`/health`)"
-      entryPoints: [websecure]
+      rule: "Path(`/health`)"
+      entryPoints: [web]
       service: backend
       priority: 100
-      tls:
-        certResolver: letsencrypt
 
     # Covers /api/v1/auth/* and /auth/verify (Traefik forward auth endpoint)
     auth-public:
-      rule: "Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api/v1/auth`) || PathPrefix(`/auth`))"
-      entryPoints: [websecure]
+      rule: "PathPrefix(`/api/v1/auth`) || PathPrefix(`/auth`)"
+      entryPoints: [web]
       service: backend
       priority: 95
-      tls:
-        certResolver: letsencrypt
 
     # ── Retriever routes ────────────────────────────────────────────────────
 
     # /api/v2/responses uses optional auth to support guest chat
     retriever-responses:
-      rule: "Host(`{{ env "DOMAIN" }}`) && Path(`/api/v2/responses`)"
-      entryPoints: [websecure]
+      rule: "Path(`/api/v2/responses`)"
+      entryPoints: [web]
       service: retriever
       middlewares: [forward-auth-optional]
       priority: 80
-      tls:
-        certResolver: letsencrypt
 
     # /api/v1/documents, /api/v1/ingest, /api/v1/users — strict auth
     retriever-v1:
-      rule: "Host(`{{ env "DOMAIN" }}`) && (PathPrefix(`/api/v1/documents`) || PathPrefix(`/api/v1/ingest`) || PathPrefix(`/api/v1/users`))"
-      entryPoints: [websecure]
+      rule: "PathPrefix(`/api/v1/documents`) || PathPrefix(`/api/v1/ingest`) || PathPrefix(`/api/v1/users`)"
+      entryPoints: [web]
       service: retriever
       middlewares: [forward-auth]
       priority: 70
-      tls:
-        certResolver: letsencrypt
 
     # All other /api/v2/* (conversations, tax, financial-summary, health, etc.)
     retriever-v2:
-      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api/v2`)"
-      entryPoints: [websecure]
+      rule: "PathPrefix(`/api/v2`)"
+      entryPoints: [web]
       service: retriever
       middlewares: [forward-auth]
       priority: 60
-      tls:
-        certResolver: letsencrypt
 
     # ── Backend routes ──────────────────────────────────────────────────────
 
     backend-user:
-      rule: "Host(`{{ env "DOMAIN" }}`) && PathPrefix(`/api/v1/user`)"
-      entryPoints: [websecure]
+      rule: "PathPrefix(`/api/v1/user`)"
+      entryPoints: [web]
       service: backend
       middlewares: [forward-auth]
       priority: 50
-      tls:
-        certResolver: letsencrypt
 
   services:
     backend:
