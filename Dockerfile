@@ -8,7 +8,7 @@ COPY config/traefik.yaml /config/traefik.yaml
 COPY config/dynamic.yaml /config/dynamic.yaml
 
 # Expose ports
-EXPOSE 80 443 8080 8082
+EXPOSE 80 8080 8082
 
 # Entrypoint is already set by base image
 CMD ["--configFile=/config/traefik.yaml"]
