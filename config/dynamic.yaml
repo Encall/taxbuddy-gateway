@@ -3,6 +3,24 @@
 
 http:
   middlewares:
+    cors-headers:
+      headers:
+        accessControlAllowOriginList:
+          - "https://taxbuddy.encall.cloud"
+        accessControlAllowMethods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "PATCH"
+          - "DELETE"
+          - "OPTIONS"
+        accessControlAllowHeaders:
+          - "Authorization"
+          - "Content-Type"
+          - "X-Request-ID"
+        accessControlAllowCredentials: true
+        addVaryHeader: true
+
     # Strict auth — returns 401 if token is missing or invalid
     forward-auth:
       forwardAuth:
@@ -26,6 +44,15 @@ http:
           - "X-User-Email"
 
   routers:
+    # ── CORS preflight (OPTIONS) — must be highest priority, no auth ────────
+
+    cors-preflight:
+      rule: "Method(`OPTIONS`)"
+      entryPoints: [web]
+      service: noop@internal
+      middlewares: [cors-headers]
+      priority: 1000
+
     # ── Public routes (no auth) ─────────────────────────────────────────────
 
     health:
@@ -43,12 +70,20 @@ http:
 
     # ── Retriever routes ────────────────────────────────────────────────────
 
+    # Public health check — no auth
+    retriever-health:
+      rule: "Path(`/api/v2/health`)"
+      entryPoints: [web]
+      service: retriever
+      middlewares: [cors-headers]
+      priority: 90
+
     # /api/v2/responses uses optional auth to support guest chat
     retriever-responses:
       rule: "Path(`/api/v2/responses`)"
       entryPoints: [web]
       service: retriever
-      middlewares: [forward-auth-optional]
+      middlewares: [cors-headers, forward-auth-optional]
       priority: 80
 
     # /api/v1/documents, /api/v1/ingest, /api/v1/users — strict auth
@@ -56,7 +91,7 @@ http:
       rule: "PathPrefix(`/api/v1/documents`) || PathPrefix(`/api/v1/ingest`) || PathPrefix(`/api/v1/users`)"
       entryPoints: [web]
       service: retriever
-      middlewares: [forward-auth]
+      middlewares: [cors-headers, forward-auth]
       priority: 70
 
     # All other /api/v2/* (conversations, tax, financial-summary, health, etc.)
@@ -64,7 +99,7 @@ http:
       rule: "PathPrefix(`/api/v2`)"
       entryPoints: [web]
       service: retriever
-      middlewares: [forward-auth]
+      middlewares: [cors-headers, forward-auth]
       priority: 60
 
     # ── Backend routes ──────────────────────────────────────────────────────
@@ -73,7 +108,7 @@ http:
       rule: "PathPrefix(`/api/v1/user`)"
       entryPoints: [web]
       service: backend
-      middlewares: [forward-auth]
+      middlewares: [cors-headers, forward-auth]
       priority: 50
 
   services:
