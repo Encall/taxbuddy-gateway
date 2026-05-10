@@ -18,6 +18,13 @@ http:
           - "Authorization"
           - "Content-Type"
           - "X-Request-ID"
+          - "X-Correlation-ID"
+          - "X-Trace-ID"
+          - "Accept"
+          - "Accept-Language"
+          - "Cache-Control"
+          - "Pragma"
+          - "X-User-ID"
         accessControlAllowCredentials: true
         addVaryHeader: true
 
